@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Santri - Asisten Kitab Kuning</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#064e3b">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- React & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-arabic { font-family: 'Amiri', serif; }
+  </style>
+</head>
+<body class="bg-emerald-950 text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Instruksi sistem untuk AI Santri
+    const SYSTEM_PROMPT = `Anda adalah AI Santri, asisten kecerdasan buatan berbasis keilmuan pesantren dan kitab-kitab turats (kitab kuning) ulama klasik hingga kontemporer (seperti Madzhab Syafi'i, Hanafi, Maliki, Hanbali, Tafsir Jalalain, Fathul Qarib, Ihya Ulumuddin, Riyadhus Shalihin, Bulughul Maram, dll).
+
+Tugas Anda:
+1. Menjawab pertanyaan seputar fiqih, aqidah, tasawuf, dan keislaman dengan sopan, santun, dan tawadhu.
+2. Selalu mencantumkan rujukan kitab klasik (kitab kuning) jika relevan (misal: "Sebagaimana disebutkan dalam Kitab Fathul Qarib bab Shalat...").
+3. Sertakan teks Arab/hadits/ayat jika diperlukan beserta harakat dan artinya.
+4. Gunakan bahasa Indonesia yang mudah dipahami, sejuk, dan merangkul.`;
+
+    function App() {
+      const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+      const [showSettings, setShowSettings] = useState(!localStorage.getItem('gemini_api_key'));
+      const [messages, setMessages] = useState([
+        {
+          role: 'model',
+          text: 'Assalamu\'alaikum Wr. Wb. Selamat datang di AI Santri.\n\nSilakan ajukan pertanyaan seputar hukum fiqih, ibadah, aqidah, atau rujukan kitab-kitab turats klasik ulama. InsyaAllah saya bantu carikan rujukannya.'
+        }
+      ]);
+      const [input, setInput] = useState('');
+      const [loading, setLoading] = useState(false);
+      const chatEndRef = useRef(null);
+
+      useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [messages, loading]);
+
+      const saveApiKey = (key) => {
+        setApiKey(key);
+        localStorage.setItem('gemini_api_key', key);
+        setShowSettings(false);
+      };
+
+      const handleSend = async (e) => {
+        e.preventDefault();
+        if (!input.trim() || loading) return;
+
+        if (!apiKey) {
+          setShowSettings(true);
+          return;
+        }
+
+        const userMsg = input.trim();
+        setInput('');
+        setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+        setLoading(true);
+
+        try {
+          const contents = [
+            {
+              role: 'user',
+              parts: [{ text: `System Instruction: ${SYSTEM_PROMPT}\n\nPertanyaan Santri/Pengguna: ${userMsg}` }]
+            }
+          ];
+
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents })
+          });
+
+          const data = await response.json();
+          if (data.error) {
+            throw new Error(data.error.message || 'Gagal mengambil respon API.');
+          }
+
+          const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Mohon maaf, tidak ada jawaban yang dihasilkan.';
+          setMessages(prev => [...prev, { role: 'model', text: replyText }]);
+        } catch (err) {
+          setMessages(prev => [...prev, { 
+            role: 'model', 
+            text: `⚠️ Terjadi Kesalahan: ${err.message}\n\nPastikan API Key Gemini Anda benar.` 
+          }]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div class="flex flex-col h-screen max-w-2xl mx-auto bg-emerald-900 border-x border-emerald-800 shadow-2xl">
+          {/* Header */}
+          <header class="bg-emerald-950 p-4 border-b border-emerald-800 flex justify-between items-center sticky top-0 z-10">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-emerald-950 font-bold text-xl shadow">
+                📖
+              </div>
+              <div>
+                <h1 class="font-bold text-amber-400 text-lg leading-tight">AI Santri</h1>
+                <p class="text-xs text-emerald-300">Rujukan Kitab Kuning & Turats Ulama</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSettings(!showSettings)}
+              class="p-2 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-amber-300 text-xs flex items-center gap-1 transition"
+            >
+              ⚙️ Key API
+            </button>
+          </header>
+
+          {/* Modal API Key */}
+          {showSettings && (
+            <div class="bg-emerald-950/90 backdrop-blur p-4 border-b border-amber-500/30">
+              <h3 class="text-amber-400 font-semibold text-sm mb-1">⚙️ Pengaturan API Key Gemini</h3>
+              <p class="text-xs text-emerald-200 mb-2">
+                Masukkan API Key Google Gemini gratis dari Google AI Studio.
+              </p>
+              <div class="flex gap-2">
+                <input 
+                  type="password"
+                  placeholder="Paste API Key Gemini di sini..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  class="flex-1 bg-emerald-900 border border-emerald-700 rounded px-3 py-1.5 text-xs text-emerald-100 focus:outline-none focus:border-amber-400"
+                />
+                <button 
+                  onClick={() => saveApiKey(apiKey)}
+                  class="bg-amber-500 hover:bg-amber-400 text-emerald-950 font-bold px-4 py-1.5 rounded text-xs transition"
+                >
+                  Simpan
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Chat Container */}
+          <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((msg, idx) => (
+              <div key={idx} class={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div class={`max-w-[85%] rounded-2xl p-4 shadow-md ${
+                  msg.role === 'user' 
+                    ? 'bg-amber-500 text-emerald-950 font-medium rounded-tr-none' 
+                    : 'bg-emerald-800 text-emerald-50 rounded-tl-none border border-emerald-700'
+                }`}>
+                  {msg.role === 'model' && (
+                    <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-1">
+                      📚 AI Santri
+                    </div>
+                  )}
+                  <div class="whitespace-pre-wrap text-sm leading-relaxed font-arabic">
+                    {msg.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div class="flex justify-start">
+                <div class="bg-emerald-800/80 text-amber-300 p-3 rounded-2xl text-xs flex items-center gap-2 border border-emerald-700">
+                  <span class="animate-spin">⏳</span> Sedang mengkaji rujukan kitab...
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Form Input */}
+          <form onSubmit={handleSend} class="p-3 bg-emerald-950 border-t border-emerald-800 flex gap-2">
+            <input 
+              type="text" 
+              placeholder="Tanyakan masalah hukum / kitab kuning..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              class="flex-1 bg-emerald-900 border border-emerald-700 rounded-xl px-4 py-3 text-sm text-emerald-100 placeholder-emerald-400 focus:outline-none focus:border-amber-400"
+            />
+            <button 
+              type="submit"
+              disabled={loading || !input.trim()}
+              class="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-emerald-950 font-bold px-5 py-3 rounded-xl transition flex items-center justify-center shadow"
+            >
+              Kirim 🚀
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

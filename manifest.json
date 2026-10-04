@@ -1,0 +1,15 @@
+{
+  "short_name": "AI Santri",
+  "name": "AI Santri - Asisten Kitab Kuning",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3665/3665923.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/index.html",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "display": "standalone"
+}
